@@ -1,0 +1,10 @@
+trigger HandsMenCustomerTrigger on HandsMen_Customer__c (before insert, before update) {
+    if (Trigger.isBefore) {
+        if (Trigger.isInsert) {
+            HandsMenCustomerTriggerHandler.validateCustomerOnInsert(Trigger.new);
+        }
+        if (Trigger.isUpdate) {
+            HandsMenCustomerTriggerHandler.validateCustomerOnUpdate(Trigger.new, Trigger.oldMap);
+        }
+    }
+}

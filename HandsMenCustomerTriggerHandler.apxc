@@ -1,0 +1,109 @@
+public class HandsMenCustomerTriggerHandler {
+
+    // Valid loyalty statuses
+    private static Set<String> VALID_LOYALTY_STATUSES = new Set<String>{'Bronze', 'Silver', 'Gold'};
+
+    /**
+     * Called from before insert trigger
+     */
+    public static void validateCustomerOnInsert(List<HandsMen_Customer__c> customerList) {
+        for (HandsMen_Customer__c customer : customerList) {
+            validateLoyaltyStatus(customer);
+            validateEmail(customer);
+            validateName(customer);
+            validateTotalPurchasesBasedOnLoyalty(customer);
+        }
+    }
+
+    /**
+     * Called from before update trigger
+     */
+    public static void validateCustomerOnUpdate(List<HandsMen_Customer__c> customerList,
+                                               Map<Id, HandsMen_Customer__c> oldCustomerMap) {
+        for (HandsMen_Customer__c customer : customerList) {
+            HandsMen_Customer__c oldCustomer = oldCustomerMap.get(customer.Id);
+
+            // Re-validate if loyalty status changed
+            if (customer.Loyalty_Status__c != oldCustomer.Loyalty_Status__c) {
+                validateLoyaltyStatus(customer);
+                validateTotalPurchasesBasedOnLoyalty(customer);
+            } else {
+                // Or if Total_Purchases changed
+                if (customer.Total_Purchases__c != oldCustomer.Total_Purchases__c) {
+                    validateTotalPurchasesBasedOnLoyalty(customer);
+                }
+            }
+
+            // Always validate core fields
+            validateEmail(customer);
+            validateName(customer);
+        }
+    }
+
+    /**
+     * Ensures Loyalty Status is valid
+     */
+    private static void validateLoyaltyStatus(HandsMen_Customer__c customer) {
+        if (String.isBlank(customer.Loyalty_Status__c)) {
+            customer.Loyalty_Status__c.addError('Loyalty Status cannot be empty. Please select a valid tier (Bronze, Silver, Gold).');
+        } else if (!VALID_LOYALTY_STATUSES.contains(customer.Loyalty_Status__c)) {
+            customer.Loyalty_Status__c.addError('Invalid Loyalty Status. Allowed values are: Bronze, Silver, Gold.');
+        }
+    }
+
+    /**
+     * Validates Email format
+     */
+    private static void validateEmail(HandsMen_Customer__c customer) {
+        if (String.isNotBlank(customer.Email__c)) {
+            if (!Pattern.matches('.+@.+\\..+', customer.Email__c)) {
+                customer.Email__c.addError('Please enter a valid email address.');
+            }
+        } else {
+            customer.Email__c.addError('Email is required.');
+        }
+    }
+
+    /**
+     * Ensures Name is provided
+     */
+    private static void validateName(HandsMen_Customer__c customer) {
+        if (String.isBlank(customer.Name)) {
+            customer.Name.addError('Customer Name cannot be empty.');
+        }
+    }
+
+    /**
+     * Enforce Total_Purchases__c ranges based on Loyalty Status
+     */
+    private static void validateTotalPurchasesBasedOnLoyalty(HandsMen_Customer__c customer) {
+        Decimal totalPurchases = customer.Total_Purchases__c;
+        String loyalty = customer.Loyalty_Status__c;
+
+        // Handle null value
+        if (totalPurchases == null) {
+            customer.Total_Purchases__c.addError('Total Purchases cannot be empty.');
+            return;
+        }
+
+        if (totalPurchases <= 0) {
+            customer.Total_Purchases__c.addError('Total Purchases must be greater than 0.');
+            return;
+        }
+
+        // Apply range rules based on loyalty
+        if ('Bronze'.equals(loyalty)) {
+            if (totalPurchases > 499) {
+                customer.Total_Purchases__c.addError('For Bronze loyalty, Total Purchases must be between 1 and 499.');
+            }
+        } else if ('Silver'.equals(loyalty)) {
+            if (totalPurchases < 500 || totalPurchases > 999) {
+                customer.Total_Purchases__c.addError('For Silver loyalty, Total Purchases must be between 500 and 999.');
+            }
+        } else if ('Gold'.equals(loyalty)) {
+            if (totalPurchases < 1000) {
+                customer.Total_Purchases__c.addError('For Gold loyalty, Total Purchases must be 1000 or more.');
+            }
+        }
+    }
+}
